@@ -1,5 +1,3 @@
-const comment = (...messages) => console.log(...messages)
-
 const asc = gen => (...args) => {
   const it = gen(...args)
 
@@ -24,11 +22,14 @@ const solve = modules => {
   }, {})
   modules[-1] = {fun: 0}
 
-  const find = index => {
+  const find = asc(function* (index) {
     const sources = pointed[index]
-      ? pointed[index].map(source => find(source))
+      ? yield Promise.all(
+          pointed[index].map(source =>
+            Promise.resolve().then(() => find(source))
+          )
+        )
       : []
-    comment('Subtree', index, sources)
     const sum = sources.reduce(
       (current, source) => current + source.min + source.rest,
       0
@@ -36,12 +37,10 @@ const solve = modules => {
     const childMin =
       sum > 0 ? Math.min(...sources.map(source => source.min)) : 0
     const min = Math.max(modules[index].fun, childMin)
-    comment('Subtree merged', index, {min, rest: sum - childMin})
     return {min, rest: sum - childMin}
-  }
+  })
 
-  const result = find(-1)
-  return result.min + result.rest
+  return find(-1).then(result => result.min + result.rest)
 }
 
 const groupLines = (lines, size) =>
@@ -64,14 +63,11 @@ const parse = input =>
 
 const format = result => result
 
-const main = data => {
-  const cases = [
-    Array.from({length: 100000}, (_, i) => ({fun: 1, chain: i - 1}))
-  ].concat(
-     parse(data.trim()))
-  cases.forEach((data, index) =>
-    console.log(`Case #${index + 1}:`, format(solve(data)))
-  )
-}
+const main = asc(function* (data) {
+  const cases = parse(data.trim())
+  for (let i = 0; i < cases.length; i++) {
+    console.log(`Case #${i + 1}:`, format(yield solve(cases[i])))
+  }
+})
 
 main(require('fs').readFileSync(0, 'utf-8'))
