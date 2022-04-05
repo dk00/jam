@@ -1,10 +1,8 @@
-const comment = (...messages) => console.log(...messages)
-
-const bits = 18
+const one = 1n
 const M = 1000000007n
 
 const mul = (...values) => {
-  return values.reduce((product, value) => (product * value) % M, 1n)
+  return values.reduce((product, value) => (product * value) % M, one)
 }
 const prepare = () => {
   const primes = [2]
@@ -41,74 +39,31 @@ const prepare = () => {
 
 const comb = prepare()
 
-const asc = gen => (...args) => {
-  const it = gen(...args)
-
-  return new Promise(resolve => {
-    const feed = last => {
-      const {value, done} = it.next(last)
-      if (done) {
-        resolve(value)
-      } else {
-        value.then(resolved => feed(resolved))
-      }
-    }
-    feed()
-  })
-}
-
 const solve = visible => {
-  const rangeMin = {}
-  const smaller = (a, b = a) => (visible[a] <= visible[b] ? a : b)
-  visible.forEach((_, i) =>
-    Array.from({length: bits}, (_, rank) => {
-      const key = `${(i >> rank) << rank}-${1 << rank}`
-      rangeMin[key] = smaller(i, rangeMin[key])
-    })
+  if (visible.some((current, i) => current > visible[i - 1] + 1)) {
+    return 0
+  }
+  const split = visible.map(() => ({}))
+  visible.reduce((stack, current, i) => {
+    while (stack.length > 0 && current <= visible[stack[0]]) {
+      stack.shift()
+    }
+    split[i].left = (stack[0] >= 0 ? stack[0] : -1) + 1
+    stack.unshift(i)
+    return stack
+  }, [])
+  visible.reduceRight((stack, current, i) => {
+    while (stack.length > 0 && current < visible[stack[0]]) {
+      stack.shift()
+    }
+    split[i].right = (stack[0] || visible.length) - 1
+    stack.unshift(i)
+    return stack
+  }, [])
+  return split.reduce(
+    (product, {left, right}, i) => mul(product, comb(right - left, right - i)),
+    one
   )
-  const getOrders = asc(function* (start, end) {
-    if (end - start < 2) {
-      return Promise.resolve(1n)
-    }
-    const left = Array.from({length: bits}).reduce(
-      (current, _, rank) => {
-        const next = current.index + (1 << rank)
-        if (next < end && current.index & (1 << rank)) {
-          return {
-            index: next,
-            largest: smaller(
-              rangeMin[`${current.index}-${1 << rank}`],
-              current.largest
-            ),
-          }
-        }
-        return current
-      },
-      {index: start, largest: start}
-    )
-    const res = Array.from({length: bits}).reduce((current, _, rank) => {
-      const key = `${current.index}-${1 << (17 - rank)}`
-      const next = current.index + (1 << (17 - rank))
-      if (key in rangeMin && next <= end + 1) {
-        return {
-          index: next,
-          largest: smaller(rangeMin[key], current.largest),
-        }
-      }
-      return current
-    }, left)
-
-    const {largest} = res
-    if (end % 5000 === 0) {
-      console.log(end)
-    }
-    return mul(
-      comb(end - start, largest - start),
-      yield Promise.resolve().then(() => getOrders(start, largest - 1)),
-      yield Promise.resolve().then(() => getOrders(largest + 1, end))
-    )
-  })
-  return getOrders(0, visible.length - 1)
 }
 
 const groupLines = (lines, size) =>
@@ -126,36 +81,12 @@ const parse = input => {
 
 const format = result => [].concat(result).join(' ')
 
-const main = asc(function* (data) {
-  console.log(comb(100000, 50000))
+const main = data => {
   const cases = parse(data.trim())
   for (let index = 0; index < cases.length; index++) {
-    console.log(`Case #${index + 1}:`, format(yield solve(cases[index])))
+    console.log(`Case #${index + 1}:`, format(solve(cases[index])))
   }
-  console.log(
-    `Case #${9}:`,
-    format(
-      yield solve(
-        Array.from({length: 100000}, (_, i) => Math.floor(1 + i / 99900))
-      )
-    )
-  )
-})
-/*
+}
 
- a
- *         * 
- *    *    *    *
- * *  * *  a *  * *
- **** **** *a** ****
-             q
-
- 9-9 9
- 8-9 9
- 0-7 9
-
- 2 8
- 4 8
- 8 0
-*/
 main(require('fs').readFileSync(0, 'utf-8'))
+process.exit(0)
